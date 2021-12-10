@@ -131,7 +131,7 @@ class ConnectFour:
                                for r in range(rows)]
 
     @classmethod
-    def new(cls, **kwargs) -> any:
+    def new(cls, **kwargs) -> 'ConnectFour':
         instance = cls(**kwargs)
         if 'players' not in kwargs:
             instance.players = instance.get_number_players()
