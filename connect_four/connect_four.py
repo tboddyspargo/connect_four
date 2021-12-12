@@ -206,14 +206,15 @@ class ConnectFour:
         return -1
 
     def move_scores(self, piece) -> list[int]:
-        """For each possible move (column), evaluate all relevant groups of four. Return a score for each column representing the aggregate benefit of putting a piece in that column."""
-        _INTERVAL = 100
+        """For each possible move (column), evaluate all relevant groups of four.
+        Return a score for each column representing the aggregate benefit of putting a piece in that column."""
+        # TODO: consider evaluating a score for every position on the board. This would allow potential future moves to influence current move decisions without playing ahead in the game.
         other = self.opponent(piece)
         scores = [0] * self.columns
         for c in range(self.columns):
             groups = []
             r = self.first_available_row(c)
-            # if row is full, skip it.
+            # If row is full, skip it.
             if r == -1:
                 continue
             # These are the start points from which to collect valid groups of 4.
@@ -241,54 +242,77 @@ class ConnectFour:
                     groups.append([(startR - i, startC + i) for i in range(4)])
             # The score for each group of 4 positions that contains position (r,c) contributes to the "score" for this column.
             for window in groups:
-                scores[c] += self.window_score(window, piece)
+                scores[c] += self.window_score(window, piece, consider=(r,c))
+            # TODO: Determine if necessary.
             # Favor plays in emptier rows.
-            row_modifier = r * 15
+            row_modifier = r * 0
             scores[c] += row_modifier
             # Add to score if number of neighboring opponent pieces is high.
             neighboring_opponents = 0
-            for i in range(-1, 2, 2):
-              safe_r = r+i in range(self.rows)
-              safe_c = c+i in range(self.columns)
-              if safe_r and self.board[r+i][c] == other:
-                neighboring_opponents += 1
-              if safe_c and self.board[r][c+i] == other:
-                neighboring_opponents += 1
-              if safe_r and safe_c and self.board[r+i][c+i] == other:
-                neighboring_opponents += 1
+            for i in range(r-1, r+2, 1):
+                for j in range(c-1, c+2, 1):
+                    if not (i == r and j == c) and i in range(self.rows) and j in range(self.columns) and self.board[i][j] == other:
+                        neighboring_opponents += 1
             scores[c] += neighboring_opponents * 5
-            # scores[c] = _INTERVAL * round(scores[c]/_INTERVAL)
         return scores
     
-    def window_score(self, positions, piece=Piece.RED) -> int:
+    def window_score(self, positions: list[tuple], piece: Piece = Piece.RED, consider: tuple = None) -> int:
         """Returns a score indicating how advantageous the move would be."""
         _WIN = 1000
         score = 0
         if len(positions) != 4:
             self.log.debug(f'window_score: warning - not a four element list: {positions}')
-        pieces = [self.board[r][c] for r, c in positions]
-        is_diagonal = positions[0][0] is not positions[1][0] and positions[0][1] is not positions[1][1]
-        low_row = ConnectFour.lowest_row(positions)
         other = self.opponent(piece)
+
+        # What is the orientation of these positions on the board?
+        is_diagonal = positions[0][0] is not positions[1][0] and positions[0][1] is not positions[1][1]
+        is_horizontal = positions[0][0] is positions[1][0]
+        # low_row = self.lowest_row(positions)
+
+        # Count how many of each piece are in these positions.
+        pieces = [self.board[r][c] for r, c in positions]
         mine, yours = pieces.count(piece), pieces.count(other)
         blanks = len(positions) - mine - yours
-        if mine == 4 or yours == 4:  # Someone has already won with this group.
+
+        # Determine the contents of the positions just before and after this series. If not within bounds of the board, pretend they're occupied by the opponent.
+        change_r = positions[1][0] - positions[0][0]
+        change_c = positions[1][1] - positions[0][1]
+        before = other
+        if (before_r := positions[0][0] - change_r) in range(self.rows) and (before_c := positions[0][1] - change_c) in range(self.columns):
+            before = self.board[before_r][before_c]
+        after = other
+        if (after_r := positions[3][0] + change_r) in range(self.rows) and (after_c := positions[3][1] + change_c)  in range(self.columns):
+            after = self.board[after_r][after_c]
+
+        # Whether or not the position we're considering is directly adjacent to a piece and not also at the board's edge.
+        considering_consecutive = False
+        if consider is not None and (before_r := consider[0] - change_r) in range(self.rows) and (before_c := consider[1] - change_c) in range(self.columns):
+            considering_consecutive = self.board[before_r][before_c] is not Piece.EMPTY
+        if consider is not None and not considering_consecutive and (after_r := consider[0] + change_r) in range(self.rows) and (after_c := consider[1] + change_c)  in range(self.columns):
+            considering_consecutive = self.board[after_r][after_c] is not Piece.EMPTY
+
+        # Evaluate likelihood of strategic moves
+        seven_modifier = 5 if is_diagonal or is_horizontal else 0
+        double_opportunity = 5 if (is_diagonal or is_horizontal) and considering_consecutive else 0
+        even_row = positions[0][0] % 2 == 1
+        even_odd_row_modifier = 5 if is_horizontal and ((even_row and piece is Piece.BLACK) or (not even_row and piece is Piece.RED)) else 0
+        mod = seven_modifier + even_odd_row_modifier + double_opportunity
+        if mine == 4 or yours == 4: # Someone has already won with this group.
             score = _WIN
-        elif mine == 3 and blanks == 1:  # This is potentially a winning group for "piece".
+        elif mine == 3 and blanks == 1: # This is potentially a winning group for "piece".
+            score = 900
+        elif yours == 3 and blanks == 1: # This is potentially a winning group for "other".
             score = 800
-        elif yours == 3 and blanks == 1:  # This is potentially a winning group for "other".
-            score = 700
-        elif mine > 0 and yours == 0:  # There is potential for "piece".
-            score = (mine * 15)
-        elif yours > 0 and mine == 0: # There is potential for "other".
-            score = (yours * 15)
+        elif (mine or yours) and not (mine or yours): # There is potential for either player.
+            score = (mine * (15 + mod)) + (yours * (25 + mod))
         else: # Neither can win this group.
             score = 0
+        if not score is _WIN:
+            score +=  blanks * (5 + double_opportunity)
         return score
 
     def get_best_move(self, piece) -> int:
         """Return the best move (column) based on the scores for each column and predicting a few moves into the future."""
-        _SCORE_GRANULARITY = 50
         col = -1
         other = self.opponent(piece)
         available = self.available_columns()
@@ -298,33 +322,32 @@ class ConnectFour:
             # Evaluate the score of each available move.
             scores = self.move_scores(piece)
             self.log.debug("scores -", scores)
-            for c in available:
-                # If this is the real game, try to predict the future.
-                if not self.pretend:
+            best_score = max(scores)
+            if best_score < 700 and len(available) > 1 and not self.pretend:
+                # If this is the real game and there aren't any inherently obvious moves (i.e. not winning or blocking),
+                # try to predict the future.
+                for c in available:
                     # Set up a fake environment to predict the results of the move.
                     prediction = ConnectFour(board=deepcopy(self.board),
-                                             pretend=True)
+                                            pretend=True)
                     prediction.insert(piece, c)
-
                     # Play a few turns to see if we can set up a win or prevent a loss.
                     # Update the calculated score, if so.
                     turns = 5
                     for turn in range(1, turns+1):
                         predicted_winner = prediction.play(1) and prediction.board_winner()
-                        if predicted_winner in [Piece.RED, Piece.BLACK]:
-                            # The current advantage we get from playing here depends on whether or not the predicted winner is us.
-                            # Subtract the points if the other player is predicted to win.
-                            sign = 1 if predicted_winner == piece else -1
-                            prediction_adjustment = sign * round((turns+1) * 100 / turn)
-                            scores[c] += prediction_adjustment
-                            self.log.debug("predicted for", c, repr(predicted_winner), f"in {turn} turns", prediction_adjustment)
+                        # If the current player would lose after this turn, we should avoid this play.
+                        # Only adjusting for predicted losses allows us to favor both winning and blocking plays.
+                        if predicted_winner is other:
+                            prediction_adjustment = round((turns+1) / turn) * 100
+                            scores[c] -= prediction_adjustment
+                            self.log.debug(f"CURRENT: {repr(piece)}, {c};", "WIN predicted for", repr(predicted_winner), f"in {turn} turns", -prediction_adjustment)
                             break
-                scores[c] = _SCORE_GRANULARITY * round(scores[c] / _SCORE_GRANULARITY)
             # Determine best move from scores for all possibilities
             self.log.debug("scores -", scores)
             valid_scores = [s for i, s in enumerate(scores) if i in available]
             best_score = max(valid_scores)
-            best_cols = [i for i, s in enumerate(scores) if s == best_score and i in available]
+            best_cols = [i for i, s in enumerate(scores) if s is best_score and i in available]
             col = random.choice(best_cols)
         self.log.verbose(f'get_best_move({repr(piece)}):',
                          f'column {one_index(col)}')
@@ -366,7 +389,9 @@ class ConnectFour:
                 self.winning_group = window
                 self.log.debug("board_winner:", repr(self.winner), window)
                 return self.winner
-        return Piece.EMPTY
+        self.winner = Piece.EMPTY
+        self.winning_group = []
+        return self.winner
 
     def board_has_winner(self):
         return self.board_winner() != Piece.EMPTY
@@ -401,12 +426,15 @@ class ConnectFour:
                 self.log.normal("\nPlease try again.\n")
                 return False
 
-        if not self.pretend:
+        if not self.pretend and (self.board_full() or self.winner != Piece.EMPTY):
             highlight = self.winning_group if len(
                 self.winning_group) > 0 else [(row, col)]
             self.log.normal(self.highlighted_str(highlight))
             self.log.normal("Game finished!")
-            self.log.normal(f'Winner: {repr(self.winner)}')
+            if self.winner in [Piece.RED, Piece.BLACK]:
+                self.log.normal(f'Winner: {repr(self.winner)}')
+            else:
+                self.log.normal(f'Stalemate')
         return True
 
     def get_color_choice(self) -> Piece:
