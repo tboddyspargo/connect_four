@@ -225,6 +225,7 @@ class ConnectFour:
     def move_scores(self, player: Piece = None) -> list[int]:
         """For each possible move (column), evaluate all relevant groups of four.
         Return a score for each column representing the aggregate benefit of putting a piece in that column."""
+        # TODO: Improve performance at the cost of space by using a dictionary to store already calculated window scores that include a given position.
         if player is None:
             player = self.player_whose_turn_it_is()
         opponent = self.opponent(player)
@@ -547,8 +548,8 @@ class ConnectFour:
 
 
 def main() -> None:
-    game = ConnectFour.new(players=1, log_level=LogLevel.DEBUG)
-    # game = ConnectFour.new()
+    # game = ConnectFour.new(players=1, log_level=LogLevel.DEBUG)
+    game = ConnectFour.new()
     game.play()
 
 
