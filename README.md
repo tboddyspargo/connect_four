@@ -11,9 +11,11 @@ This Connect Four game has a very simple AI and CLI which allows humans to play 
 
 # Installation
 
-Follow these steps to install this package locally
+I have not published this package to `pip`. So, you'll need to download the repo locally in order to install it.
+Follow these steps to install this package locally:
 
 ```bash
+cd ./repo_location/connect_four/
 python3 setup.py install
 ```
 
@@ -72,10 +74,21 @@ The `Logger`class is facilitates consistently formatted log messages that will r
 The `Piece` class is an enum that represents a connect four token or the lack of one. The tokens are one of the following:
 | Token | Value |
 |-------| ------|
-| RED|`"X"`|
+|RED|`"X"`|
 |BLACK|`"O"`|
 |EMPTY|`" "`|
 
 # AI Player
 
 The AI for a computer player is fairly rudimentary, though I have some ideas for improvement. It favors defensiveness, for the most part, and can't see too many moves into the future. It's definitely beatable.
+
+# Development
+
+I used `virtualenvironment` to develop this module, so my instructions may make certain assumptions based on that.
+
+# TODO
+
+- [ ] Evaluate scores for every move on the board rather than only the current possible moves. This will allow the AI to anticipate when a move would set up a negative outcome and might make for a more intuitive move weighting system.
+- [ ] Improve evaluation of consecutive pieces. The algorithm is not great. The tricky part is considering a potential move in between two matching pieces a continuation.
+- [ ] (Maybe) Implement a `Position` class that can be empty so that `Piece` can be only `RED` or `BLACK`. Would this improve readability?
+- [ ] (Maybe) Remove `Piece` class and simplify to just `"X", "O", " "` strings. Would this reduce complexity?
