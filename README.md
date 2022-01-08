@@ -88,7 +88,8 @@ I used `virtualenvironment` to develop this module, so my instructions may make 
 
 # TODO
 
-- [ ] Evaluate scores for every move on the board rather than only the current possible moves. This will allow the AI to anticipate when a move would set up a negative outcome and might make for a more intuitive move weighting system.
-- [ ] Improve evaluation of consecutive pieces. The algorithm is not great. The tricky part is considering a potential move in between two matching pieces a continuation.
+- [x] Implement minimax algorithm with alpha-beta pruning to improve AI.
+- [ ] Implement `Difficulty` configuration to make the AI dumber/smarter.
 - [ ] (Maybe) Implement a `Position` class that can be empty so that `Piece` can be only `RED` or `BLACK`. Would this improve readability?
 - [ ] (Maybe) Remove `Piece` class and simplify to just `"X", "O", " "` strings. Would this reduce complexity?
+- [ ] Consider simply constructing a board with a list of empty lists (rather than filling it with empties). An empty column has `len == 0`, while a full one has `len == self.rows`. This may improve both time and space efficiency.
