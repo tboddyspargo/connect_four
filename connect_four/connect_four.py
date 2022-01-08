@@ -611,6 +611,10 @@ class ConnectFour:
         return random_choice
             
     def best_columns_from_scores(self, scores: list[int], best_func: Callable[[list[int]], int] = max, available: list[int] = None) -> int:
+        """Return all the columns that share the best score in the provided list as evaluated by the provided best_func function.
+        Optionally limit the returned items by the provide set of available columns.
+        
+        NOTE: This will not return a sorted list of columns ordered in accordance with their score."""
         if available is None:
             available = self.available_columns()
         best_score = best_func([s for c, s in enumerate(scores) if c in available])
@@ -619,6 +623,7 @@ class ConnectFour:
         return best_available
     
     def weighted_scores(self, scores: list[int], weights: list[int]) -> int:
+        """Return an updated array of scores for each column taking the average of the provided score and corresponding provided weight."""
         weighted: list[int] = []
         for c, s in enumerate(scores):
             weight = weights[c] if c < len(weights) else 0
@@ -628,18 +633,24 @@ class ConnectFour:
 
     #region Game Completion
     def board_is_full(self) -> bool:
+        """Returns True if the board has no more available columns, otherwise False."""
         return len(self.available_columns()) == 0
 
     def board_has_winner(self):
-        return self.evaluate_board_win() in {-WINNING_SCORE, WINNING_SCORE}
+        """Returns True if there is a winning score on the board according to self.evaluate_board_win and self.is_winning_score."""
+        return self.is_winning_score(self.evaluate_board_win())
 
     def game_over(self):
+        """Returns True if the board is either full or has a winner, otherwise False."""
         return self.board_has_winner() or self.board_is_full()
 
     #endregion
 
     #region Turn Mechanics
     def play(self, turns: int = None) -> bool:
+        """Play the game for the provided number of turns (or as many as remain if not provided).
+        The game will prompt for moves if it is configured for human players, otherwise it will use self.get_best_move to play for non-human players.
+        Returns True if the plays occurred successfully, or False if there was a problem during play."""
         if turns is None:
             turns = self.rows * self.columns
         human_players: list[Piece] = [Piece.RED, Piece.BLACK] if self.players == 2 else [self.human_player] * self.players
@@ -685,6 +696,7 @@ class ConnectFour:
         return True
 
     def prompt_for_color_choice(self) -> Piece:
+        """Prompt the user to provide a color/piece choice via stdin."""
         request, color = 0, ""
         while color.upper() not in [Piece.BLACK.name, Piece.RED.name]:
             if request > 0:
@@ -696,6 +708,7 @@ class ConnectFour:
         return Piece[color.upper()]
 
     def prompt_for_column_choice(self) -> int:
+        """Prompt the user for a move/column choice for their turn. Columns are adjusted to be one-index for ease of use."""
         col, request = -1, 0
         while col not in range(self.columns):
             col = input(f'{self.player_whose_turn_it_is()}, please select a column number (1-{one_index(self.columns)}):\n')
@@ -709,6 +722,7 @@ class ConnectFour:
         return col
 
     def prompt_for_number_players(self) -> int:
+        """Prompt for a number of human players for this game."""
         players = -1
         request = 0
         max_attempts = 5
@@ -730,6 +744,7 @@ class ConnectFour:
     #endregion
 
 def main() -> None:
+    """main() is only expected to be used during development to verify functionality."""
     board = [
         [Piece.EMPTY, Piece.EMPTY, Piece.EMPTY, Piece.EMPTY, Piece.EMPTY, Piece.EMPTY, Piece.EMPTY],
         [Piece.EMPTY, Piece.EMPTY, Piece.EMPTY, Piece.RED, Piece.EMPTY, Piece.EMPTY, Piece.EMPTY],
