@@ -8,10 +8,11 @@ from codetiming import Timer
 import random
 
 #region Globals
-WINNING_SCORE = 256
 POINTS_PER_PIECE = 2
+WINNING_SCORE = 1000
 OPPONENT_SCORE_MODIFIER = 1.25
-ALPHA_BETA_START = 1000
+OBVIOUS_MOVE_THRESHOLD = 500
+ALPHA_BETA_START = 10000
 #endregion
 
 #region Helpers
@@ -140,7 +141,8 @@ class ConnectFour:
                  pretend: bool = False,
                  log_level: LogLevel = LogLevel.NONE,
                  rows: int = 6,
-                 columns: int = 7) -> None:
+                 columns: int = 7,
+                 minimax_results: dict[str, int] = {}) -> None:
         """Initializes a ConnectFour game based on the configuration parameters provided."""
         self.log: Logger = Logger(log_level)
         self.pretend: bool = pretend
@@ -155,7 +157,7 @@ class ConnectFour:
         self.winner: Piece = Piece.EMPTY
         self.slots: list[tuple[int]] = self.get_slots()
         self.slots_by_position: dict[tuple[int], list[tuple[int]]] = self.get_slots_by_position()
-        self.minimax_results: dict[str, int] = {}
+        self.minimax_results: dict[str, int] = minimax_results
         self.plays: list[tuple[int]] = []
 
     @classmethod
@@ -184,6 +186,10 @@ class ConnectFour:
         elif player is Piece.RED:
             return Piece.BLACK
         return None
+
+    @staticmethod
+    def is_winning_score(score: int) -> bool:
+        return score == -WINNING_SCORE or score == WINNING_SCORE
 
     def determine_turn(self) -> int:
         """Return the current turn number based on how many positions on the board are already occupied."""
@@ -365,39 +371,41 @@ class ConnectFour:
     def slot_score(self, positions: list[tuple[int, int]], win_only: bool = False) -> float:
         """Return the score of the provided list of four board positions.
         The score will be based on how many piece a single player has in a row"""
+        MINIMUM_PIECES_TO_SCORE = 1
         # Count occurrences
         total = { Piece.RED: 0, Piece.BLACK: 0, Piece.EMPTY: 0 }
         for r, c in positions:
             total[self.board[r][c]] += 1
-            if win_only and (self.board[r][c] is Piece.EMPTY or (total[Piece.BLACK] > 0 and total[Piece.RED] > 0)):
+            # If both players are represented or if there's an empty and we're only looking for a full group, return 0.
+            if (win_only and self.board[r][c] is Piece.EMPTY) or (total[Piece.BLACK] > 0 and total[Piece.RED] > 0):
                 return 0
-        # Compute and return points based on totals. If blocked or empty, return 0.
-        piece, sign = Piece.EMPTY, 0
-        MINIMUM_PIECES_TO_SCORE = 0
-        if total[Piece.BLACK] == 0 and total[Piece.RED] > MINIMUM_PIECES_TO_SCORE:
-            piece, sign = Piece.RED, 1
-        elif total[Piece.RED] == 0 and total[Piece.BLACK] > MINIMUM_PIECES_TO_SCORE:
-            piece, sign = Piece.BLACK, -1
-        else:
-            return 0
-
-        # Winning score
-        if total[piece] == 4:
-            return sign * WINNING_SCORE
+        # At this point we know that, at most, one player has pieces in this group.
+        # Determine which piece to count for the score.
+        piece, sign = (Piece.RED, 1) if total[Piece.BLACK] == 0 else (Piece.BLACK, -1)
+        # Winning score. (If win_only is True, then this is automatically a winner).
+        if win_only or total[piece] == 4:
+            return sign * (WINNING_SCORE)
         
+        # If the minimum number of player pieces hasn't been reached, return 0.
+        # if total[Piece.EMPTY] > len(positions)-MINIMUM_PIECES_TO_SCORE:
+        #     return 0
         # Non-winning score
-        return sign * (POINTS_PER_PIECE ** (total[piece]-1))
+        return sign * (POINTS_PER_PIECE ** (total[piece]))
 
     def move_scores(self, player: Piece = None, available: list[tuple[int]] = None, win_only: bool = False) -> list[int]:
         """Returns a board score for every column reflecting how advantageous it is for either player.
         The score will be positive if it favors Piece.RED and negative if it favors Piece.BLACK or 0 if there's no obvious benefit to either.
         """
+        t = Timer(name = f"\tmove_score()", text = "{name} took {:.3f}s", logger = self.log.debug)
+        t.start()
         if available is None:
             available = self.available_columns()
         if player is None:
             player = self.player_whose_turn_it_is()
         opponent = self.opponent(player)
-        game = ConnectFour(board = deepcopy(self.board), players = 0, pretend = True, log_level = self.log.level, rows = self.rows, columns = self.columns)
+        game = self
+        if not self.pretend:
+            game = ConnectFour(board = deepcopy(self.board), players = 0, pretend = True, log_level = self.log.level, rows = self.rows, columns = self.columns)
         scores = [0] * self.columns
         opponent_scores = [0] * self.columns
         for c in available:
@@ -412,6 +420,7 @@ class ConnectFour:
                 game.remove(c)
         for c in available:
             scores[c] -= int(opponent_scores[c] / OPPONENT_SCORE_MODIFIER)
+        t.stop()
         return scores
 
     def winning_move_score(self, col: int) -> bool:
@@ -420,7 +429,6 @@ class ConnectFour:
         try:
             row = self.first_available_row(col)
             for s in self.slots_by_position[(row, col)]:
-                win = 0
                 for i in range(1, len(s)):
                     r, c = s[i-1]
                     prev = self.board[r][c]
@@ -431,9 +439,7 @@ class ConnectFour:
                     if curr is Piece.EMPTY or prev is not curr:
                         break
                     if i == len(s)-1:
-                        win = 1 if curr is Piece.RED else -1
-                if win != 0:
-                    return win
+                        return 1 if curr is Piece.RED else -1
         except Exception:
             pass
         return 0
@@ -441,9 +447,10 @@ class ConnectFour:
     def evaluate_board_win(self) -> int:
         for s in self.slots:
             score = self.slot_score(s, win_only = True)
-            if WINNING_SCORE == score or -WINNING_SCORE == score:
+            if self.is_winning_score(score):
+                r, c = s[0]
                 self.winning_group = s
-                self.winner = self.board[s[0][0]][s[0][1]]
+                self.winner = self.board[r][c]
                 return score
         self.winning_group = []
         self.winner = Piece.EMPTY
@@ -451,47 +458,63 @@ class ConnectFour:
     
     def evaluate_board_outlook(self, player: Piece = None) -> int:
         result = 0
-        for p, slots in self.slots_by_position.items():
-            for s in slots:
-                result += self.slot_score([p] + s)
+        for group in self.slots:
+            score = self.slot_score(group)
+            result += score
+            if self.is_winning_score(score):
+                return int(score)
         return int(result)
 
-    def minimax(self, player: Piece = None, depth: int = 4, alpha: int = -ALPHA_BETA_START, beta: int = ALPHA_BETA_START) -> int:
+    def minimax(self, player: Piece = None, depth: int = 5, alpha: int = -ALPHA_BETA_START, beta: int = ALPHA_BETA_START) -> int:
         """Return the score of the current board (most positive if it favors the 'max' player, RED, and more negative if it favors the 'min' player, BLACK).
         The score will be based on a simple score of how hypothetically beneficial each move is to each player.
         This function will be called recursively to a specified depth to incorporate how future 'branches' of moves should influence the score for the current board.
         
-        NOTE: This function is computationally intensive. A depth greater than 4 may result in unreasonably long wait times."""
+        NOTE: This function is computationally intensive. A depth greater than 5 may result in unreasonably long wait times."""
         VERBOSE_LOG_MAX_INDENTS = 6
-        string_repr = repr(self)
         if player is None:
             player = self.player_whose_turn_it_is()
         if not self.pretend:
             self.log.error("minimax() is running on a real board. You may see log messages for hypothetical moves.")
         is_max = player is Piece.RED
         score = 0
-        # If the board outcome has been determined or the intended depth has been reached, return.
-        # Otherwise, make recursive call to go deeper.
-        if string_repr in self.minimax_results:
+        string_repr = repr(self)
+        
+        # If we've seen this board before and we're at a leaf, use the previously calculated score.
+        if string_repr in self.minimax_results and (self.is_winning_score(self.minimax_results[string_repr]) or depth < 1):
             score = self.minimax_results[string_repr]
-        elif None is not self.evaluate_board_win() != 0:
-            # If there is a winner, save and update the score.
-            # Reduce the absolute value of this win score by the turn. This ensures that earlier wins are weighted more than later wins.
-            win = self.slot_score(positions = self.winning_group)
-            self.minimax_results[string_repr] = win
-            win_sign = 1 if win > 0 else -1
-            score = win - (win_sign * self.current_turn)
-            self.log.verbose("\t"*(VERBOSE_LOG_MAX_INDENTS-depth), f"'{repr(self.winner)}' win:", win, win_sign, score)
+        else:
+            # Otherwise, check for a winner.
+            score = self.evaluate_board_win()
+        # If the board outcome has been determined or the intended depth has been reached, evaluate score and return.
+        # Otherwise, make recursive call to go deeper.
+        if self.is_winning_score(score):
+            self.minimax_results[string_repr] = score
+            # Increse the absolute value of this win score by the current. This ensures that earlier wins are weighted more than later wins.
+            score += depth if score > 0 else -depth
+            self.log.verbose("\t"*(VERBOSE_LOG_MAX_INDENTS-depth), f"{repr(self.winner)} ({depth}) win:", score)
         elif self.board_is_full():
-            score = 0
+            return 0
         elif depth < 1:
-            # Since this isn't a true stalemate guarantee, don't save this in minimax_results.
-            score = self.evaluate_board_outlook(player)
+            # Calling self.evaluate_board_outlook() is appropriate here, but computationally intensive.
+            # One alternative is to set the score to 0 since it's not a win.
+            score = self.evaluate_board_outlook()
+            self.minimax_results[string_repr] = score
         else:
             sign = 1 if is_max else -1
             best = sign * -(ALPHA_BETA_START*10)
-            for col in self.available_columns():
-                self.log.verbose("\t"*(VERBOSE_LOG_MAX_INDENTS-depth), f"{repr(player)} {depth} playing in col {col} on turn {self.current_turn}, alpha: {alpha}, beta: {beta}")
+            # Reduce the available options to only the obvious ones (win or block), if available.
+            # A reasonable player wouldn't consider any others.
+            available = self.available_columns()
+            obvious = []
+            for col in available:
+                if self.winning_move_score(col) != 0:
+                    obvious.append(col)
+            if len(obvious) > 0:
+                available = obvious
+            # Evaluate the game outlook based on each possible move, selecting the most desirable one.
+            for col in available:
+                self.log.verbose("\t"*(VERBOSE_LOG_MAX_INDENTS-depth), f"{repr(player)} ({depth}) playing in col {col} on turn {self.current_turn}, alpha: {alpha}, beta: {beta}")
                 self.insert(col)
                 val = self.minimax(player = self.opponent(player), depth = depth - 1, alpha = alpha, beta = beta)
                 self.remove(col)
@@ -505,9 +528,11 @@ class ConnectFour:
                         beta = best
                     
                 if beta <= alpha:
+                    self.log.verbose("\t"*(VERBOSE_LOG_MAX_INDENTS-depth), f"PRUNING because {repr(player)} ({depth}) playing in col {col} on turn {self.current_turn} would result in {val} (best: {best}), alpha: {alpha} beta: {beta}")
                     break
-                self.log.verbose("\t"*(VERBOSE_LOG_MAX_INDENTS-depth), f"{repr(player)} {depth} playing in col {col} on turn {self.current_turn} would result in {val} (best: {best}), alpha: {alpha} beta: {beta}")
+                self.log.verbose("\t"*(VERBOSE_LOG_MAX_INDENTS-depth), f"{repr(player)} ({depth}) playing in col {col} on turn {self.current_turn} would result in {val} (best: {best}), alpha: {alpha} beta: {beta}")
             score = best
+            # self.log.normal(self, f"\n{repr(player)} ({depth}), {score}")
         return score
 
     def get_best_move(self) -> int:
@@ -521,7 +546,7 @@ class ConnectFour:
         minimax_label = "MAX" if is_max else "MIN"
         min_or_max_func = max if is_max else min
         available = self.available_columns()
-        minimax_depth = 4
+        minimax_depth = 7
         self.log.debug("get_best_move:", repr(player), minimax_label)
 
         # If there's only one available move, use it.
@@ -530,50 +555,55 @@ class ConnectFour:
             return available[0]
 
         # Determine if there's an obvious choice to win or block.
-        obvious_scores = [0] * self.columns
-        win_columns, block_columns = [], []
+        immediate_win_block_scores = [0] * self.columns
+        only_obvious_move_scores = []
         for col in available:
-            obvious_scores[col] = self.winning_move_score(col)
-            if min_or_max_func(obvious_scores[col], 0) != 0:
-                win_columns.append(col)
-            elif obvious_scores[col] != 0:
-                block_columns.append(col)
-        self.log.debug(f"\tobvious scores:", obvious_scores, "win:", win_columns, "block:", block_columns)
-        if len(win_columns) > 0:
-            return win_columns[0]
-        elif len(block_columns) > 0:
-            return block_columns[0]
+            immediate_win_block_scores[col] = self.winning_move_score(col)
+            if immediate_win_block_scores[col] != 0:
+                only_obvious_move_scores.append(immediate_win_block_scores[col])
+        self.log.debug(f"\twin/block scores:", immediate_win_block_scores)
+        if len(only_obvious_move_scores) > 0:
+            obvious_move_score = min_or_max_func(only_obvious_move_scores)
+            for col in available:
+                if immediate_win_block_scores[col] == obvious_move_score:
+                    self.log.debug(f"\twin/block move:", col)
+                    return col
 
         # Get the minimax score for every possible move.
+        adjusted_depth = min(self.current_turn-1, minimax_depth)
         minimax_scores = [0] * self.columns
-        t = Timer(name = f"\tminimax(depth: {minimax_depth})", text = "{name} took {:.3f}s", logger = self.log.debug)
-        t.start()
-        future = self
-        if not self.pretend:
-            future = ConnectFour(players = 0, board = deepcopy(self.board), pretend = True, log_level = self.log.level, rows = self.rows, columns = self.columns)
-        for col in available:
-            future.insert(col)
-            self.log.verbose("\t_", f"{repr(player)} {minimax_depth+1} playing in col {col} on turn {self.current_turn}")
-            val = future.minimax(player = future.opponent(player), depth = minimax_depth)
-            minimax_scores[col] = val
-            future.remove(col)
-        t.stop()
+        if adjusted_depth > 0:
+            t = Timer(name = f"\tminimax(depth: {adjusted_depth})", text = "{name} took {:.3f}s", logger = self.log.debug)
+            t.start()
+            future = self
+            if not self.pretend:
+                future = ConnectFour(players = 0, board = deepcopy(self.board), pretend = True, log_level = self.log.level, rows = self.rows, columns = self.columns, minimax_results = self.minimax_results)
+            alpha, beta = -ALPHA_BETA_START, ALPHA_BETA_START
+            for col in available:
+                future.insert(col)
+                self.log.verbose("\t_", f"{repr(player)} ({adjusted_depth+1}) playing in col {col} on turn {self.current_turn}, alpha: {alpha}, beta: {beta}")
+                val = future.minimax(player = future.opponent(player), depth = adjusted_depth, alpha = alpha, beta = beta)
+                minimax_scores[col] = val
+                future.remove(col)
+                self.log.verbose("\t_", f"{repr(player)} ({adjusted_depth+1}) playing in col {col} on turn {self.current_turn} would result in {val}, alpha: {alpha}, beta: {beta}")
+            t.stop()
         best_minimax_columns = self.best_columns_from_scores(minimax_scores, min_or_max_func, available = available)
         self.log.debug("\tminmax scores:", minimax_scores, best_minimax_columns)
         if len(best_minimax_columns) == 1:
             self.log.debug("\tbest minimax move:", f"{best_minimax_columns[0]} ({minimax_scores[best_minimax_columns[0]]})")
             return best_minimax_columns[0]
 
+
         # Evaluate the board for the best immediate moves.
         simple_scores = self.move_scores(player = player, available = available)
-        best_immediate_columns = self.best_columns_from_scores(simple_scores, min_or_max_func, available = available)
-        self.log.debug(f"\tsimple optimum scores:", simple_scores, best_immediate_columns)
+        self.log.debug("\tmove scores:", simple_scores)
 
         # If multiple moves have the same minimax score, see how many of those moves are shared by the best simple immediate moves.
-        best_columns = self.best_columns_from_scores(simple_scores, min_or_max_func, available = best_minimax_columns)
-        self.log.debug("\tcombined scores:", f"{best_columns} {[(simple_scores[c], minimax_scores[c]) for c in best_columns]}")
-        if len(best_columns) == 1:
-            self.log.debug("\tcombined move:", f"{best_columns[0]} ({minimax_scores[best_columns[0]]}, {simple_scores[best_columns[0]]})")
+        weighted_scores = self.weighted_scores(scores=simple_scores, weights=minimax_scores)
+        best_columns = self.best_columns_from_scores(weighted_scores, min_or_max_func, available=available)
+        self.log.debug("\tweighted scores:", f"{weighted_scores} {best_columns} {[(simple_scores[c], minimax_scores[c]) for c in best_columns]}")
+        if len(best_columns) == 1 or len(best_columns) >= 4:
+            self.log.debug("\tweighted move:", f"{best_columns[0]} ({minimax_scores[best_columns[0]]}, {simple_scores[best_columns[0]]})")
             return best_columns[0]
         
         random_choice = random.choice(best_columns)
@@ -587,6 +617,13 @@ class ConnectFour:
         best_available = [c for c, s in enumerate(scores) if s == best_score and c in available]
         best_available.sort(key = self.prioritize_central_columns)
         return best_available
+    
+    def weighted_scores(self, scores: list[int], weights: list[int]) -> int:
+        weighted: list[int] = []
+        for c, s in enumerate(scores):
+            weight = weights[c] if c < len(weights) else 0
+            weighted.append(int((s + weight) / 2))
+        return weighted
     #endregion
 
     #region Game Completion
@@ -693,11 +730,23 @@ class ConnectFour:
     #endregion
 
 def main() -> None:
-    game = ConnectFour.new(players=0, human_player = Piece.RED, log_level=LogLevel.DEBUG)
-    # game = ConnectFour.new()
+    board = [
+        [Piece.EMPTY, Piece.EMPTY, Piece.EMPTY, Piece.EMPTY, Piece.EMPTY, Piece.EMPTY, Piece.EMPTY],
+        [Piece.EMPTY, Piece.EMPTY, Piece.EMPTY, Piece.RED, Piece.EMPTY, Piece.EMPTY, Piece.EMPTY],
+        [Piece.EMPTY, Piece.EMPTY, Piece.RED, Piece.BLACK, Piece.RED, Piece.EMPTY, Piece.EMPTY],
+        [Piece.EMPTY, Piece.EMPTY, Piece.BLACK, Piece.RED, Piece.BLACK, Piece.EMPTY, Piece.EMPTY],
+        [Piece.EMPTY, Piece.EMPTY, Piece.RED, Piece.BLACK, Piece.BLACK, Piece.EMPTY, Piece.EMPTY],
+        [Piece.EMPTY, Piece.BLACK, Piece.BLACK, Piece.RED, Piece.RED, Piece.EMPTY, Piece.EMPTY]
+    ]
+    
+    game = ConnectFour.new(
+        players = 0,
+        human_player = Piece.RED,
+        # board = board,
+        log_level = LogLevel.DEBUG
+    )
 
-    # game.play(8)
-    game.play()
+    game.play(12)
 
 if __name__ == "__main__":
     main()
