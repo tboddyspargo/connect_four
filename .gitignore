@@ -1,20 +1,22 @@
 # Virtual environment files
 env/
+venv/
 
 # MacOS hidden directory info.
 .DS_Store
 
-# Compiled python modules.
+# Compiled python byte code.
 *.pyc
 
 # Setuptools distribution folder.
 /dist/
 
 # Python egg metadata, regenerated from source files by setuptools.
-/*.egg-info
+*.egg-info/
 
 # Pip cache directory
-**/__pycache__/
+__pycache__/
 
 # Pip build directory
 build/
+bin/

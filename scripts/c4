@@ -1,0 +1,12 @@
+#!/usr/bin/env python3
+
+from connect_four import ConnectFour
+
+
+def main():
+    game = ConnectFour.new()
+    game.play()
+
+
+if __name__ == "__main__":
+    main()
