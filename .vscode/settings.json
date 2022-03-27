@@ -1,0 +1,12 @@
+{
+  "python.formatting.provider": "black",
+  "python.linting.pydocstyleEnabled": true,
+  "python.linting.pycodestyleEnabled": true,
+  "editor.formatOnSave": true,
+  "files.trimTrailingWhitespace": true,
+  "python.linting.pycodestyleArgs": ["--max-line-length=120"],
+  "python.linting.pydocstyleArgs": ["--add-ignore=D104"],
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.python"
+  }
+}
