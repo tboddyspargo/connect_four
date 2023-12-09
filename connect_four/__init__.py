@@ -1,3 +1,3 @@
 from .connect_four import ConnectFour
 
-assert ConnectFour
+__all__ = ["ConnectFour"]

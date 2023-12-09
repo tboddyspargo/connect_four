@@ -1,14 +1,15 @@
-"""connect_four provides the ConnectFour class for configuring and interacting with a ConnectFour game."""
-from typing import Callable, Union
-from copy import deepcopy
-from codetiming import Timer
+"""The ConnectFour class allows users to create and configure an instance of single game of connect four that can be played."""
 import random
+from copy import deepcopy
+from typing import Callable, Union
+
+from codetiming import Timer
+
+from . import errors, utils
 
 # Internal module imports
-from .logger import LogLevel, Logger
+from .logger import Logger, LogLevel
 from .piece import Piece
-from . import errors
-from . import utils
 
 # region Globals
 POINTS_PER_PIECE = 2
@@ -43,7 +44,19 @@ class ConnectFour:
         columns: int = 7,
         minimax_results: dict[str, int] = {},
     ) -> None:
-        """Initialize a ConnectFour game based on the configuration parameters provided."""
+        """
+        Initialize a ConnectFour game based on the configuration parameters provided.
+
+        Args:
+            players (int): The number of players in the game.
+            human_player (Piece, optional): The piece assigned to the human player. Defaults to None.
+            board (list[list[Piece]], optional): The initial game board. Defaults to None.
+            pretend (bool, optional): Whether to simulate the game without making actual moves. Defaults to False.
+            log_level (Union[LogLevel, str], optional): The log level for game logging. Defaults to LogLevel.NONE.
+            rows (int, optional): The number of rows in the game board. Defaults to 6.
+            columns (int, optional): The number of columns in the game board. Defaults to 7.
+            minimax_results (dict[str, int], optional): The results of the minimax algorithm. Defaults to {}.
+        """
         self.log: Logger = Logger(LogLevel[log_level]) if isinstance(log_level, str) else Logger(log_level)
         self.pretend: bool = pretend
         self.players: int = players
@@ -138,15 +151,15 @@ class ConnectFour:
 
     @classmethod
     def get_shape_from_positions(cls, positions: list[tuple[int]]) -> str:
-        r"""
+        """
         Return a string representation of the shape of the set of adjacent positions on the board.
 
         This is intended to quickly express whether a set of positions is:
-        vertical (|), horizontal (–), diagonal ascending (/), or diagonal descending (\).
+        vertical (|), horizontal (-), diagonal ascending (/), or diagonal descending (\).
         """
         change_r = positions[1][0] - positions[0][0]
         change_c = positions[1][1] - positions[0][1]
-        shape = "–" if change_r == 0 else "|"
+        shape = "-" if change_r == 0 else "|"
         if change_r != 0 != change_c:
             shape = "/" if change_r < 0 else "\\"
         return shape
@@ -168,7 +181,7 @@ class ConnectFour:
                 # | group that includes c.
                 if space_down:
                     results.append([(r + j, c) for j in range(4)])
-                # – group that includes r.
+                # - group that includes r.
                 if space_right:
                     results.append([(r, c + j) for j in range(4)])
                 # \ diagonal group that includes r.
@@ -343,7 +356,7 @@ class ConnectFour:
         The score will be positive if it favors Piece.RED, negative if it favors Piece.BLACK, or 0 if there's no obvious
         benefit to either.
         """
-        t = Timer(name=f"\tmove_score()", text="{name} took {:.3f}s", logger=self.log.debug)
+        t = Timer(name="\tmove_score()", text="{name} took {:.3f}s", logger=self.log.debug)
         t.start()
         if available is None:
             available = self.available_columns()
@@ -561,12 +574,12 @@ class ConnectFour:
             immediate_win_block_scores[col] = self.winning_move_score(col)
             if immediate_win_block_scores[col] != 0:
                 only_obvious_move_scores.append(immediate_win_block_scores[col])
-        self.log.debug(f"\twin/block scores:", immediate_win_block_scores)
+        self.log.debug("\twin/block scores:", immediate_win_block_scores)
         if len(only_obvious_move_scores) > 0:
             obvious_move_score = min_or_max_func(only_obvious_move_scores)
             for col in available:
                 if immediate_win_block_scores[col] == obvious_move_score:
-                    self.log.debug(f"\twin/block move:", col)
+                    self.log.debug("\twin/block move:", col)
                     return col
 
         # Get the minimax score for every possible move.
@@ -711,7 +724,6 @@ class ConnectFour:
         row, col, attempt = -1, -1, 1
         turn_counter = 0
         while not self.game_over() and turn_counter < turns:
-
             # Get the player's move choice (which column they'll put a piece into).
             if self.player_whose_turn_it_is() in human_players:
                 col = self.prompt_for_column_choice()
@@ -768,7 +780,7 @@ class ConnectFour:
             try:
                 col = int(col) - 1
                 request += 1
-            except errors.InvalidInsertError as e:
+            except errors.InvalidInsertError:
                 self.log.normal("Invalid column.")
                 if request > 5:
                     raise Exception("Too many failed attempts")
