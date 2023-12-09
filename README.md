@@ -16,7 +16,7 @@ Follow these steps to install this package locally:
 
 ```bash
 cd ./repo_location/connect_four/
-python3 setup.py install
+python -m build
 ```
 
 # Usage

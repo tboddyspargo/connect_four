@@ -11,6 +11,8 @@ classifiers = [
     'Development Status :: 4 - Beta',
     'License :: OSI Approved :: MIT License',
     'Programming Language :: Python :: 3.9',
+    'Programming Language :: Python :: 3.10',
+    'Programming Language :: Python :: 3.11',
     'Topic :: Games/Entertainment :: Puzzle Games',
 ]
 requires-python = '>=3.9'
@@ -18,7 +20,7 @@ dependencies = ["codetiming"]
 
 
 [project.optional-dependencies]
-dev = ["black", "pycodestyle", "pydocstyle", "pylint"]
+lint = ["ruff"]
 test = ["pytest"]
 
 
@@ -31,24 +33,26 @@ homepage = 'https://github.com/tboddyspargo/connect_four_py'
 repository = 'https://github.com/tboddyspargo/connect_four_py.git'
 
 [build-system]
-requires = ["setuptools>=42", "wheel", "cython ~= 0.29.0"]
+requires = ["setuptools>=64.0"]
 build-backend = "setuptools.build_meta"
 
-# NOTE: pycodestyle doesn't actually support configuration via pyproject.toml yet... See .vscode/settings.json
-[tool.pycodestyle]
-max-line-length = 120
-statistics = true
 
-[tool.black]
+[tool.ruff]
 line-length = 120
-target-version = ['py38', 'py39', 'py310']
-extend-exclude = '''
-/(
-  # The following are specific to Black, you probably don't want those.
-  | build
-  | dist
-  | \w+.egg-info
-  | env
-  | venv
-)/
-'''
+extend-exclude = ["build", "dist", "*.egg-info", "*venv*"]
+ignore = [
+    'W191',
+    'E111',
+    'E114',
+    'E117',
+    'D206',
+    'D300',
+    'Q000',
+    'Q001',
+    'Q002',
+    'Q003',
+    'COM812',
+    'COM819',
+    'ISC001',
+    'ISC002',
+]
