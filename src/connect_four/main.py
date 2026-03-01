@@ -3,6 +3,11 @@ from .piece import Piece
 
 
 def main() -> None:
+    game = ConnectFour.new()
+    game.play()
+
+
+def experiment() -> None:
     """main() is only expected to be used during development to verify functionality."""
     # fmt: off
     board = [

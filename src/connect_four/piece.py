@@ -4,6 +4,7 @@ from sys import intern
 
 class Piece(Enum):
     """A connect four game piece. RED is represented by 'X' and BLACK is represented by 'O'."""
+
     EMPTY = intern(" ")
     RED = intern("X")
     BLACK = intern("O")

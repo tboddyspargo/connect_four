@@ -13,34 +13,44 @@ classifiers = [
     'Programming Language :: Python :: 3.9',
     'Programming Language :: Python :: 3.10',
     'Programming Language :: Python :: 3.11',
+    'Programming Language :: Python :: 3.12',
+    'Programming Language :: Python :: 3.13',
     'Topic :: Games/Entertainment :: Puzzle Games',
 ]
-requires-python = '>=3.9'
-dependencies = ["codetiming"]
+requires-python = '>=3.10'
+dependencies = [
+    "codetiming",
+    "pre-commit>=4.5.1",
+]
 
 
-[project.optional-dependencies]
-lint = ["ruff"]
-test = ["pytest"]
-
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "ruff>=0.15.4",
+    "ty>=0.0.19",
+]
 
 [project.scripts]
-c4 = 'connect_four.scripts.c4:main'
-test = 'connect_four.main:main'
+c4 = 'connect_four.main:main'
+t4 = 'connect_four.main:experiment'
 
 [project.urls]
 homepage = 'https://github.com/tboddyspargo/connect_four_py'
 repository = 'https://github.com/tboddyspargo/connect_four_py.git'
 
 [build-system]
-requires = ["setuptools>=64.0"]
-build-backend = "setuptools.build_meta"
+requires = ["uv_build>=0.10.7,<0.11.0"]
+build-backend = "uv_build"
 
 
 [tool.ruff]
 line-length = 120
-extend-exclude = ["build", "dist", "*.egg-info", "*venv*"]
+target-version = "py39"
+select = ["ALL"]
+extend-exclude = ["*.egg-info", ".*"]
 ignore = [
+    'D212',
     'W191',
     'E111',
     'E114',
@@ -56,3 +66,12 @@ ignore = [
     'ISC001',
     'ISC002',
 ]
+
+[[tool.ty.overrides]]
+include = ["tests/**", "**/test_*.py"]
+
+[tool.ty.overrides.rules]
+possibly-unresolved-reference = "warn"
+
+[tool.ty.overrides.analysis]
+respect-type-ignore-comments = true

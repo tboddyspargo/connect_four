@@ -1,7 +1,8 @@
 """The ConnectFour class allows users to create and configure an instance of single game of connect four that can be played."""
+
 import random
+from collections.abc import Callable
 from copy import deepcopy
-from typing import Callable, Union
 
 from codetiming import Timer
 
@@ -39,7 +40,7 @@ class ConnectFour:
         human_player: Piece = None,
         board: list[list[Piece]] = None,
         pretend: bool = False,
-        log_level: Union[LogLevel, str] = LogLevel.NONE,
+        log_level: LogLevel | str = LogLevel.NONE,
         rows: int = 6,
         columns: int = 7,
         minimax_results: dict[str, int] = {},
@@ -56,6 +57,7 @@ class ConnectFour:
             rows (int, optional): The number of rows in the game board. Defaults to 6.
             columns (int, optional): The number of columns in the game board. Defaults to 7.
             minimax_results (dict[str, int], optional): The results of the minimax algorithm. Defaults to {}.
+
         """
         self.log: Logger = Logger(LogLevel[log_level]) if isinstance(log_level, str) else Logger(log_level)
         self.pretend: bool = pretend
@@ -92,8 +94,7 @@ class ConnectFour:
         """Return the lowest row in the given set of board positions."""
         result = -1
         for r, c in positions:
-            if r > result:
-                result = r
+            result = max(result, r)
         return result
 
     @staticmethod
@@ -106,7 +107,7 @@ class ConnectFour:
         """
         if player is Piece.BLACK:
             return Piece.RED
-        elif player is Piece.RED:
+        if player is Piece.RED:
             return Piece.BLACK
         return None
 
@@ -145,13 +146,13 @@ class ConnectFour:
         result.append(row_div)
         final_row = []
         for i in range(self.columns):
-            final_row.append(f" {i+1} ")
+            final_row.append(f" {i + 1} ")
         result.append("|" + "|".join(final_row) + "|")
         return "\n".join(result) + "\n"
 
     @classmethod
     def get_shape_from_positions(cls, positions: list[tuple[int]]) -> str:
-        """
+        r"""
         Return a string representation of the shape of the set of adjacent positions on the board.
 
         This is intended to quickly express whether a set of positions is:
@@ -482,7 +483,7 @@ class ConnectFour:
             score += depth if score > 0 else -depth
             self.log.verbose(
                 "\t" * (VERBOSE_LOG_MAX_INDENTS - depth),
-                f"{repr(self.winner)} ({depth}) win:",
+                f"{self.winner!r} ({depth}) win:",
                 score,
             )
         elif self.board_is_full():
@@ -508,7 +509,7 @@ class ConnectFour:
             for col in available:
                 self.log.verbose(
                     "\t" * (VERBOSE_LOG_MAX_INDENTS - depth),
-                    f"{repr(player)} ({depth}) playing in col {col} on turn {self.current_turn},",
+                    f"{player!r} ({depth}) playing in col {col} on turn {self.current_turn},",
                     f"alpha: {alpha}, beta: {beta}",
                 )
                 self.insert(col)
@@ -531,13 +532,13 @@ class ConnectFour:
                 if beta <= alpha:
                     self.log.verbose(
                         "\t" * (VERBOSE_LOG_MAX_INDENTS - depth),
-                        f"PRUNING because {repr(player)} ({depth}) playing in col {col} on turn {self.current_turn}",
+                        f"PRUNING because {player!r} ({depth}) playing in col {col} on turn {self.current_turn}",
                         f"would result in {val} (best: {best}), alpha: {alpha} beta: {beta}",
                     )
                     break
                 self.log.verbose(
                     "\t" * (VERBOSE_LOG_MAX_INDENTS - depth),
-                    f"{repr(player)} ({depth}) playing in col {col} on turn {self.current_turn}",
+                    f"{player!r} ({depth}) playing in col {col} on turn {self.current_turn}",
                     f"would result in {val} (best: {best}), alpha: {alpha} beta: {beta}",
                 )
             score = best
@@ -608,7 +609,7 @@ class ConnectFour:
                 future.insert(col)
                 self.log.verbose(
                     "\t_",
-                    f"{repr(player)} ({adjusted_depth+1}) playing in col {col} on turn {self.current_turn},",
+                    f"{player!r} ({adjusted_depth + 1}) playing in col {col} on turn {self.current_turn},",
                     f"alpha: {alpha}, beta: {beta}",
                 )
                 val = future.minimax(
@@ -621,7 +622,7 @@ class ConnectFour:
                 future.remove(col)
                 self.log.verbose(
                     "\t_",
-                    f"{repr(player)} ({adjusted_depth+1}) playing in col {col} on turn {self.current_turn}",
+                    f"{player!r} ({adjusted_depth + 1}) playing in col {col} on turn {self.current_turn}",
                     f"would result in {val}, alpha: {alpha}, beta: {beta}",
                 )
             t.stop()

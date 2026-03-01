@@ -1,11 +1,11 @@
 # Virtual environment files
-*venv*/
+.venv/
 
 # MacOS hidden directory info.
 .DS_Store
 
 # Compiled python byte code.
-*.pyc
+*.py[oc]
 
 # Setuptools distribution folder.
 dist/
@@ -16,7 +16,10 @@ dist/
 # Python cache directories
 __pycache__/
 .pytest_cache/
+.coverage
+htmlcov/
 
 # Pip build directory
 build/
 bin/
+wheels/
